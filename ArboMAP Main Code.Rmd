@@ -97,7 +97,7 @@ if (RUN.NOW == 1){
 
 ```{r setoptions, include=FALSE, echo=FALSE}
 
-ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path){
+ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, original.metrics = 0){
 
  
   # where do we want the outputs?
@@ -135,7 +135,7 @@ ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, weath
 
   results = NA
   if (RUN.NOW == 0){
-    results = call.ArboMAP(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, graphicoutputdir, fullcasematoutputdir, mosqmatoutputdir, weekinquestionSun, weekinquestionSat, weekinquestionSunstr, weekinquestionSatstr, maxmosqyear, maxdesiredhumandate, maxdesiredhumandatestr, laglen, dlagdeg)
+    results = call.ArboMAP(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, graphicoutputdir, fullcasematoutputdir, mosqmatoutputdir, weekinquestionSun, weekinquestionSat, weekinquestionSunstr, weekinquestionSatstr, maxmosqyear, maxdesiredhumandate, maxdesiredhumandatestr, laglen, dlagdeg, original.metrics)
   }
   
   # Create a list of inputs that can be used later as function inputs
@@ -147,7 +147,7 @@ ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, weath
 
 # Run code if running as a Markdown file
 if (RUN.NOW == 1){
-  out = ArboMAP(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path)
+  out = ArboMAP(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, original.metrics = 1)
   inputs = out[[2]] 
   graphicoutputdir = inputs[[1]]
   fullcasematoutputdir = inputs[[2]]
@@ -164,8 +164,7 @@ if (RUN.NOW == 1){
 }
 
 
-if (!exists("weekinquestion")){
-  weekinquestion = -9999             
+if (!exists("graphicoutputdir")){
   var1name = var2name = "NOT DEFINED"
   compyear1 = -9999
   compyear2 = -9999# Adding a second check, as maxmosqyear will have been defined above for a previous input, but some of the other variables may not have been
@@ -176,16 +175,20 @@ if (!exists("weekinquestion")){
 }
 
 # Create a sub-function to contain all the individual function calls
-call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, graphicoutputdir, fullcasematoutputdir, mosqmatoutputdir, weekinquestionSun, weekinquestionSat, weekinquestionSunstr, weekinquestionSatstr, maxmosqyear, maxdesiredhumandate, maxdesiredhumandatestr, laglen, dlagdeg){
+call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, graphicoutputdir, fullcasematoutputdir, mosqmatoutputdir, weekinquestionSun, weekinquestionSat, weekinquestionSunstr, weekinquestionSatstr, maxmosqyear, maxdesiredhumandate, maxdesiredhumandatestr, laglen, dlagdeg, original.metrics){
   
   #**# Place plots that would be knit into a pdf into a standalone pdf?
   # Call each chunks as a function
   
   # Read in weather data
-  weather = read.weather.data(weatherpathstr, weathersummaryfile)
+  if (typeof(weatherpathstr) == "character"){
+    weather = read.weather.data(weatherpathstr, weathersummaryfile)
+  # If it is already read in, just use the data object
+  }else{  weather = weatherpathstr  }
+  
   
   # Plot weather data and create daily extremes object
-  dailyextr = plot.weather.data(weather, graphicoutputdir)
+  dailyextr = plot.weather.data(weather, graphicoutputdir, weekinquestionSun)
   
   # Calculate vector infection data
   wnv.out = vector.infection.data(mosqfile, maxmosqyear)
@@ -197,7 +200,7 @@ call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, 
     perpos = wnv.out[[6]]
     
   # Additional mosquito data processing
-  mdp2 = mosquito.data.process2(wnv, stratafile, mosqmatoutputdir, graphicoutputdir, minmosqyear, maxmosqyear)
+  mdp2 = mosquito.data.process2(wnv, stratafile, mosqmatoutputdir, graphicoutputdir, weekinquestionSun, minmosqyear, maxmosqyear)
     wnv = mdp2[[1]]
     infectglm = mdp2[[2]]
     randeffs = mdp2[[3]]
@@ -210,8 +213,13 @@ call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, 
     totcase = human.out[[3]]
     observedfraction = human.out[[4]]
   
+  # Estimate relationship between number of positive mosquito districts and expected number of human cases
+  pdthc = positive.districts.to.human.cases(wnv, fullcasemat)
+  slope = pdthc[[1]]
+  intercept = pdthc[[2]]
+    
   # Create mosquito plots by month
-  mosq.by.month(wnv, infectglm, minmosqyear, maxmosqyear, compyear1, compyear2, graphicoutputdir)
+  mosq.by.month(wnv, infectglm, minmosqyear, maxmosqyear, compyear1, compyear2, graphicoutputdir, weekinquestionSun)
   
   # Second human data processing step
   phd2 = process.human.data2(dailyextr, fullcasemat, randeffs, var1name, var2name, strata, maxdesiredhumandate, minmosqyear, maxmosqyear, laglen, graphicoutputdir, compyear1, compyear2, weekinquestionSun)
@@ -219,26 +227,34 @@ call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, 
     tempdf2 = phd2[[2]]
     fullcasemat = phd2[[3]]
 
-  # Create the proportion positive plot
-  thisplot2 = proportion.positive.plot(tempdf,tempdf2, maxmosqyear, compyear1, compyear2, graphicoutputdir)
-
   # Write human case matrix
   cm.out = write.case.matrix.and.calc.cases(fullcasemat, fullcasematoutputdir, maxmosqyear)
     fullcasemat = cm.out[[1]]
     positivesthisyear = cm.out[[2]]
     multiplier = cm.out[[3]]
     casesthisyear = cm.out[[4]]
+
+  # Create the proportion positive plot
+  thisplot2 = proportion.positive.plot(tempdf,tempdf2, maxmosqyear, compyear1, compyear2, graphicoutputdir, weekinquestionSun)
   
   # Create the raw risk map
-  make.raw.risk.map(districtshapefile, fullcasemat, graphicoutputdir)
+  make.raw.risk.map(districtshapefile, fullcasemat, graphicoutputdir, weekinquestionSun)
 
   # Create the relative risk map
-  make.riskcalcs(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, thisplot2)
+  make.riskcalcs(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, weekinquestionSun, thisplot2)
   
-  Districts.With.Cases.Focal.Week = round(66*tempdf2$est,1)
+  if (original.metrics == 1){
+    Districts.With.Cases.Focal.Week = round(66*tempdf2$est,1) # 66 does not make sense in the context of NY and CT
+    human.cases = casesthisyear # casesthisyear
+  }
+  if (original.metrics == 0){
+    Districts.With.Cases.Focal.Week = round(multiplier*tempdf2$est,1) # formerly hardcoded to be 66, changed to multiplier which is the number of human cases expected, given a human case, and $est is the probability of a positive district #**# THIS SHOULD BE DOUBLE-CHECKED.
+    human.cases = round(positivesthisyear * slope + intercept, 1)
+  }
+  
   # compile the main results into the results object
-  results = list(DistrictsWithCasesInFocalWeek = Districts.With.Cases.Focal.Week, AnnualPositiveDistrictWeeks = positivesthisyear, Multiplier = multiplier, HumanCasesForYear = casesthisyear)
-  
+  results = list(weeks.cases = Districts.With.Cases.Focal.Week, annual.positive.district.weeks = positivesthisyear, multiplier = multiplier, annual.human.cases = human.cases)
+
   return(results)
 }
 
@@ -289,7 +305,7 @@ Weather data from the gridMET data set range from `r min(weather$date, na.rm=TRU
 
 ```{r weatherplots, fig.width=7, fig.height=5, echo=FALSE, message = FALSE}
 
-plot.weather.data = function(weather, graphicoutputdir){
+plot.weather.data = function(weather, graphicoutputdir, weekinquestionSun){
   # plot normals and this year
   weather <- group_by(weather,
                     doy)
@@ -351,19 +367,15 @@ plot.weather.data = function(weather, graphicoutputdir){
   rm(weather)
   gc()
 
-  save1 = ggsave(paste(graphicoutputdir,
-             "var1.png",
-             sep=""), plot1)
-  save2 = ggsave(paste(graphicoutputdir,
-             "var2.png",
-             sep=""), plot2)
+  save1 = ggsave(sprintf("%svar1_%s.png", graphicoutputdir, weekinquestionSun), plot1)
+  save2 = ggsave(sprintf("%svar2_%s.png", graphicoutputdir, weekinquestionSun), plot2)
 
   return(dailyextr)
 }
 
 
 if (RUN.NOW == 1){
-  dailyextr = plot.weather.data(weather, graphicoutputdir) 
+  dailyextr = plot.weather.data(weather, graphicoutputdir, weekinquestionSun) 
 }
 ```
 
@@ -373,7 +385,10 @@ if (RUN.NOW == 1){
 ```{r mosquitodataprocess, echo=FALSE}
 
 vector.infection.data = function(mosqfile, maxmosqyear){
-  wnv <- read.csv(mosqfile, stringsAsFactors=FALSE)
+  # Allow input of an R object instead of a .csv file
+  if (typeof(mosqfile) == "character"){
+    wnv <- read.csv(mosqfile, stringsAsFactors=FALSE)
+  }else{  wnv = mosqfile  }
   wnv$col_date <- as.Date(wnv$col_date, "%m/%d/%Y")
   wnv$year <- as.numeric(format(wnv$col_date, "%Y"))
   
@@ -444,7 +459,7 @@ if (!exists("nrow2")){
 There are `r nrow2` samples in the vector testing database. For `r maxmosqyear`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. The regions used for stratification are mapped below; districts are thought to share risk more closely with others in the same strata, although all districts share some level of risk with all other districts.  
 
 ```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
-mosquito.data.process2 = function(wnv, stratafile, mosqmatoutputdir, graphicoutputdir, minmosqyear, maxmosqyear){
+mosquito.data.process2 = function(wnv, stratafile, mosqmatoutputdir, graphicoutputdir, weekinquestionSun, minmosqyear, maxmosqyear){
   # import district identifiers
   strata <- read.csv(stratafile)
   strata$district <- simplifynames(strata$district)
@@ -503,15 +518,13 @@ mosquito.data.process2 = function(wnv, stratafile, mosqmatoutputdir, graphicoutp
     xlab("") + ylab("Relative risk due to\nvector infection growth rate")
   
   plot(thisplot)
-  ggsave(paste(graphicoutputdir,
-             "vector infection rates.png",
-             sep=""), thisplot)
+  ggsave(sprintf("%svector infection rates_%s.png", graphicoutputdir, weekinquestionSun), thisplot)
   
   return(list(wnv, infectglm, randeffs, strata))
 }
 
 if (RUN.NOW == 1){
-  mdp2 = mosquito.data.process2(wnv, stratafile, mosqmatoutputdir, graphicoutputdir, minmosqyear, maxmosqyear)
+  mdp2 = mosquito.data.process2(wnv, stratafile, mosqmatoutputdir, graphicoutputdir, weekinquestionSun, minmosqyear, maxmosqyear)
   wnv = mdp2[[1]]
   infectglm = mdp2[[2]]
   randeffs = mdp2[[3]]
@@ -524,7 +537,11 @@ if (RUN.NOW == 1){
 process.human.data = function(humandatafile, maxdesiredhumandate, maxobservedhumandate, minmosqyear, maxmosqyear, weekinquestionSun, districtshapefile, stratafile, graphicoutputdir){
   
   # import data
-  human <- read.csv(humandatafile)
+  if (typeof(humandatafile) == "character"){
+    human <- read.csv(humandatafile)
+  # If it is already read in, just use the data object
+  }else{  human = humandatafile  }
+
   begrow <- nrow(human)
   human$chardate <- as.character(levels(human$date))[as.numeric(human$date)]
   human$date <- as.Date(human$date, "%m/%d/%Y")
@@ -604,7 +621,11 @@ process.human.data = function(humandatafile, maxdesiredhumandate, maxobservedhum
   projected_districts.df <- left_join(projected_districts.df, stratamapcsv,
                                      by="district")
   
-  projected_districts.df$stratum <- factor(projected_districts.df$strata.x)
+  if (length(projected_districts.df$strata) == 0){
+    projected_districts.df$stratum <- factor(projected_districts.df$strata.x)
+  }else{
+    projected_districts.df$stratum = factor(projected_districts.df$strata)
+  }
 
   thisplot <- ggplot(projected_districts.df) +
         aes(long,lat,fill=stratum,group=group,id=id,guides=FALSE) +
@@ -621,9 +642,7 @@ process.human.data = function(humandatafile, maxdesiredhumandate, maxobservedhum
               legend.key.height=unit(0.5,"cm"))
   plot(thisplot)
   
-  ggsave(paste(graphicoutputdir,
-               "strata.png",
-               sep=""), thisplot)
+  ggsave(sprintf("%sstrata_%s.png", graphicoutputdir, weekinquestionSun), thisplot)
   
   human.out = list(fullcasemat, projected_districts.df, totcase, observedfraction)
   return(human.out)
@@ -644,10 +663,49 @@ if (!exists("totcase")){
 
 ```
 
+```{r, echo = FALSE}
+# Calculate the relationship between positive districts to human cases in that year
+positive.districts.to.human.cases = function(wnv, fullcasemat){
+  
+  # Calculate number of WNV+ districts in historical data
+  wnv.by.week.district.year = aggregate(wnv$wnv_result, by = list(wnv$weeknum, wnv$district, wnv$year), max, na.rm = TRUE)
+  wnv.positives = wnv.by.week.district.year[wnv.by.week.district.year$x > 0, ] # Just keep those with a positive
+  # Add together all positive weeks for each district and year
+  positive.district.weeks = aggregate(wnv.positives$x, by = list(wnv.positives$Group.2, wnv.positives$Group.3), sum) # Using x as that will give the appropriate sums
+  colnames(positive.district.weeks) = c("district", "year", "PositiveDistrictWeeks")
+  # Group.1 is district, Group.2 is year
+  positive.district.weeks$district_year = sprintf("%s_%s", positive.district.weeks$district, positive.district.weeks$year)
+  
+  # Calculate number of human cases for each year of historical data
+  fullcasemat$year = strftime(fullcasemat$weekstartdate, "%Y")
+  district.cases = aggregate(fullcasemat$totalcases, by = list(fullcasemat$district, fullcasemat$year), sum)
+  colnames(district.cases) = c("district", "year", "HumanCases")
+  district.cases$district_year = sprintf("%s_%s", district.cases$district, district.cases$year)
+
+  # Merge based on district and year
+  annual.positives = merge(positive.district.weeks, district.cases, by = "district_year") #, all = TRUE #**# No point in keeping all, to only drop them in the next step.
+  
+  #**# THIS MISSES HUMAN CASES THAT OCCURRED WITHOUT A POSITIVE DISTRICT WEEK BUT AVOIDS ZERO-INFLATION
+  # Run simple regression to get relationship between district-week positives and human cases
+  regression = lm(annual.positives$HumanCases~annual.positives$PositiveDistrictWeeks) #**# May want something more sophisticated: i.e. year and district as random effects
+  
+  slope = regression$coefficients[2]
+  intercept = regression$coefficients[1]
+  
+  reg = summary(regression)
+  intercept.p = reg$coefficients[1,4]
+  slope.p = reg$coefficients[2,4]
+  # Return slope estimate #**# Can add quantile regression or some other approach to better incorporate variation across years
+  return(list(slope, intercept, slope.p, intercept.p))
+  
+}
+
+```
+
 The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqyear` is shown here by grouping observations nearby in time.
 
 ```{r mosqbymonth, include=TRUE, echo=FALSE, fig.width=6, fig.height=3, message = FALSE}
-mosq.by.month = function(wnv, infectglm, minmosqyear, maxmosqyear, compyear1, compyear2, graphicoutputdir){
+mosq.by.month = function(wnv, infectglm, minmosqyear, maxmosqyear, compyear1, compyear2, graphicoutputdir, weekinquestionSun){
   
   mosqmopreds <- expand.grid(strata=unique(wnv$strata),
                              year=minmosqyear:maxmosqyear,
@@ -702,14 +760,12 @@ mosq.by.month = function(wnv, infectglm, minmosqyear, maxmosqyear, compyear1, co
   
   
   plot(thisplot)
-  ggsave(paste(graphicoutputdir,
-               "mosqinfectgrowthrates.png",
-               sep=""), thisplot)
+  ggsave(sprintf("%smosqinfectgrowthrates_%s.png", graphicoutputdir, weekinquestionSun), thisplot)
 
 }
 
 if (RUN.NOW == 1){
-  mosq.by.month(wnv, infectglm, minmosqyear, maxmosqyear, compyear1, compyear2, graphicoutputdir)
+  mosq.by.month(wnv, infectglm, minmosqyear, maxmosqyear, compyear1, compyear2, graphicoutputdir, weekinquestionSun)
 }
 
 ```
@@ -944,9 +1000,7 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
     theme(panel.grid.minor.x=element_blank()) +
     theme(axis.text.x = element_text(hjust=-0.225))
   plot(thisplot)
-  ggsave(paste(graphicoutputdir,
-               "predictions.png",
-               sep=""), thisplot)
+  ggsave(sprintf("%spredictions_%s.png", graphicoutputdir, weekinquestionSun), thisplot)
   
   tempdf <- fullcasemat
   tempdf <- group_by(tempdf, weekstartdate)
@@ -991,48 +1045,6 @@ if (!exists('tempdf2')){
 }
 
 ```
-Predictions for `r maxmosqyear` are compared to observations in `r compyear1` and `r compyear2`. We expect `r round(66*tempdf2$est,1)` districts to have at least one human case between `r weekinquestionSunstr` `r weekinquestionSun` and `r weekinquestionSatstr` `r weekinquestionSat`.
-
-```{r plotblah, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
-proportion.positive.plot = function(tempdf, tempdf2, maxmosqyear, compyear1, compyear2, graphicoutputdir){
-
-  thisplot <- ggplot(tempdf) + geom_line(data=tempdf, aes(x=weekstartdate,
-                             y=est,
-                             color=year,
-                             linetype=year)) +
-    geom_point(data=tempdf2, aes(x=weekstartdate, y=est), color="red", size=4)+
-    xlab("") + ylab("") +
-    scale_x_date(date_labels="%b", date_breaks="1 month",
-                 limits=c(as.Date(paste(maxmosqyear, "-05-01", sep=""), "%Y-%m-%d"),
-                          as.Date(paste(maxmosqyear, "-11-15", sep=""), "%Y-%m-%d")),
-                 labels=c("May","Jun","Jul","Aug","Sep","Oct","Nov","")) +
-    ylab("Proportion of districts positive") +
-    theme(panel.grid.minor.x=element_blank()) +
-    scale_linetype_manual(values=c(3,2,1)) +
-    scale_color_manual(values=c("black","black","red"))
-  thisplot1 <- thisplot + ggtitle(paste("Estimates for ",
-                  maxmosqyear, " compared to observations in ", compyear1, " and ", compyear2,
-                  "\nwith week beginning ", weekinquestionSun, " highlighted", sep="")) +
-    theme(axis.text.x = element_text(hjust=-1.25))
-  plot(thisplot1)
-  #```
-  #```{r silentsave12899234, include=FALSE, echo=FALSE}
-  thisplot2 <- thisplot + theme(legend.position="bottom") +
-    theme(axis.text.x = element_text(hjust=-0.50))
-  ggsave(paste(graphicoutputdir,
-               "estimates.png",
-               sep=""), thisplot2,
-         width=4,
-         height=4)
-  
-  return(thisplot2)  
-}
-
-if (RUN.NOW == 1){
-  thisplot2 = proportion.positive.plot(tempdf,tempdf2, maxmosqyear, compyear1, compyear2, graphicoutputdir)
-}
-
-```
 
 ```{r echo=FALSE}
 write.case.matrix.and.calc.cases = function(fullcasemat, fullcasematoutputdir, maxmosqyear){
@@ -1067,6 +1079,51 @@ if (!exists("positivesthisyear")){
 
 ```
 
+Predictions for `r maxmosqyear` are compared to observations in `r compyear1` and `r compyear2`. We expect `r round(66*tempdf2$est,1)` districts to have at least one human case between `r weekinquestionSunstr` `r weekinquestionSun` and `r weekinquestionSatstr` `r weekinquestionSat`.
+
+```{r plotblah, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
+proportion.positive.plot = function(tempdf, tempdf2, maxmosqyear, compyear1, compyear2, graphicoutputdir, weekinquestionSun){
+
+  thisplot <- ggplot(tempdf) + geom_line(data=tempdf, aes(x=weekstartdate,
+                             y=est,
+                             color=year,
+                             linetype=year)) +
+    geom_point(data=tempdf2, aes(x=weekstartdate, y=est), color="red", size=4)+
+    xlab("") + ylab("") +
+    scale_x_date(date_labels="%b", date_breaks="1 month",
+                 limits=c(as.Date(paste(maxmosqyear, "-05-01", sep=""), "%Y-%m-%d"),
+                          as.Date(paste(maxmosqyear, "-11-15", sep=""), "%Y-%m-%d")),
+                 labels=c("May","Jun","Jul","Aug","Sep","Oct","Nov","")) +
+    ylab("Proportion of districts positive") +
+    theme(panel.grid.minor.x=element_blank()) +
+    scale_linetype_manual(values=c(3,2,1)) +
+    scale_color_manual(values=c("black","black","red"))
+  thisplot1 <- thisplot + ggtitle(paste("Estimates for ",
+                  maxmosqyear, " compared to observations in ", compyear1, " and ", compyear2,
+                  "\nwith week beginning ", weekinquestionSun, " highlighted", sep="")) +
+    theme(axis.text.x = element_text(hjust=-1.25))
+  plot(thisplot1)
+  #```
+  #```{r silentsave12899234, include=FALSE, echo=FALSE}
+  thisplot2 <- thisplot + theme(legend.position="bottom") +
+    theme(axis.text.x = element_text(hjust=-0.50))
+  ggsave(sprintf("%sestimates_%s.png", graphicoutputdir, weekinquestionSun), thisplot2,
+         width=4,
+         height=4)
+  
+  return(thisplot2)  
+}
+
+if (RUN.NOW == 1){
+  thisplot2 = proportion.positive.plot(tempdf,tempdf2, maxmosqyear, compyear1, compyear2, graphicoutputdir, weekinquestionSun)
+}
+
+```
+
+``` {r echo=FALSE}
+#The outputs below are generated by write.case.matrix.and.calc.cases. It was moved higher up in the code, as I wanted to use the multiplier variable sooner.
+```
+
 We expect that there will be `r positivesthisyear` positive district-weeks this year. If we assume that each positive district-week corresponds to `r multiplier` cases, which is an estimate based on historical data, then this yields a total of `r casesthisyear` cases estimated for `r maxmosqyear`.
 
 \newpage
@@ -1075,7 +1132,7 @@ We expect that there will be `r positivesthisyear` positive district-weeks this 
 We visualize the raw estimated risk for `r weekinquestion` below. If a district is darkest blue, then we estimate that there should be no human cases reported for this district, during this week. If a district is brightest red, we are certain that there will be at least one human case reported for this district, during this week.
 
 ```{r shapefile, include=TRUE, echo=FALSE, warnings=FALSE, message = FALSE, fig.width=7, fig.height=3.5}
-make.raw.risk.map = function(districtshapefile, fullcasemat, graphicoutputdir){
+make.raw.risk.map = function(districtshapefile, fullcasemat, graphicoutputdir, weekinquestionSun){
   district_shapes <- readShapePoly(districtshapefile)
   district_shapes$NAME <- simplifynames(district_shapes$NAME)
   crs(district_shapes) <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80     +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
@@ -1119,13 +1176,11 @@ make.raw.risk.map = function(districtshapefile, fullcasemat, graphicoutputdir){
   plot(thisplot)
   #```
   #```{r silentsave89712, include=FALSE, echo=FALSE}
-  ggsave(paste(graphicoutputdir,
-               "map absolute.png",
-               sep=""), thisplot)
+  ggsave(sprintf("%smap absolute_%s.png", graphicoutputdir, weekinquestionSun), thisplot)
 }
 
 if (RUN.NOW == 1){
-  make.raw.risk.map(districtshapefile, fullcasemat, graphicoutputdir)
+  make.raw.risk.map(districtshapefile, fullcasemat, graphicoutputdir, weekinquestionSun)
 }
 
 ```
@@ -1133,7 +1188,7 @@ if (RUN.NOW == 1){
 This map indicates whether probabilities reported in the previous map are higher (red) than average, lower (blue) than average, or right about normal (yellow) compared to the same week in previous years.
 
 ```{r riskcalcs, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5, warnings = FALSE, message = FALSE}
-make.riskcalcs = function(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, thisplot2){
+make.riskcalcs = function(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, weekinquestionSun, thisplot2){
   
   thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
   thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
@@ -1215,9 +1270,7 @@ make.riskcalcs = function(fullcasemat, weekinquestion, projected_districts.df, g
   plot(thisplotrisk)
   #```
   #```{r silentsave1245, include=FALSE, echo=FALSE}
-  ggsave(paste(graphicoutputdir,
-               "map relative.png",
-               sep=""), thisplotrisk,
+  ggsave(sprintf("%smap relative_%s.png", graphicoutputdir, weekinquestionSun), thisplotrisk,
          width=4,
          height=4)
   
@@ -1259,7 +1312,7 @@ make.riskcalcs = function(fullcasemat, weekinquestion, projected_districts.df, g
 }
 
 if (RUN.NOW == 1){
-  make.riskcalcs(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, thisplot2)
+  make.riskcalcs(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, weekinquestionSun, thisplot2)
 }
 
 ```
