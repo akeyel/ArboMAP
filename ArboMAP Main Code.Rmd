@@ -163,6 +163,10 @@ if (RUN.NOW == 1){
   dlagdeg = inputs[[12]]
 }
 
+# In a separate if statement as weekinquestion is an ArboMAP input, so might be defined in a user's window prior to loading the ArboMAP code
+if (!exists("weekinquestion")){
+  weekinquestion = -9999
+}
 
 if (!exists("graphicoutputdir")){
   var1name = var2name = "NOT DEFINED"
@@ -242,13 +246,15 @@ call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, 
 
   # Create the relative risk map
   make.riskcalcs(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, weekinquestionSun, thisplot2)
-  
+
+  # Calculate number of cases expected for the week
+  n.districts = length(unique(wnv$district))
+  Districts.With.Cases.Focal.Week = round(n.districts*tempdf2$est,1) # 66 was the number of counties in South Dakota. Replaced on 2019-07-17 with a variable
+  #Districts.With.Cases.Focal.Week = round(multiplier*tempdf2$est,1) # formerly hardcoded to be 66, changed to multiplier which is the number of human cases expected, given a human case, and $est is the probability of a positive district #**# This option removed on 2019-07-17 after discussing with Justin and correcting 66 to be n.districts. This version does not multiply by number of counties, and tempdf2$est gives the average probability of a human case for a county. 
   if (original.metrics == 1){
-    Districts.With.Cases.Focal.Week = round(66*tempdf2$est,1) # 66 does not make sense in the context of NY and CT
     human.cases = casesthisyear # casesthisyear
   }
   if (original.metrics == 0){
-    Districts.With.Cases.Focal.Week = round(multiplier*tempdf2$est,1) # formerly hardcoded to be 66, changed to multiplier which is the number of human cases expected, given a human case, and $est is the probability of a positive district #**# THIS SHOULD BE DOUBLE-CHECKED.
     human.cases = round(positivesthisyear * slope + intercept, 1)
   }
   
@@ -1070,16 +1076,16 @@ if (RUN.NOW == 1){
   positivesthisyear = cm.out[[2]]
   multiplier = cm.out[[3]]
   casesthisyear = cm.out[[4]]
+  n.districts = length(unique(wnv$district))
 }
 
 if (!exists("positivesthisyear")){
-  positivesthisyear = multiplier = casesthisyear = -9999
+  positivesthisyear = multiplier = casesthisyear = n.districts = -9999
 }
-
 
 ```
 
-Predictions for `r maxmosqyear` are compared to observations in `r compyear1` and `r compyear2`. We expect `r round(66*tempdf2$est,1)` districts to have at least one human case between `r weekinquestionSunstr` `r weekinquestionSun` and `r weekinquestionSatstr` `r weekinquestionSat`.
+Predictions for `r maxmosqyear` are compared to observations in `r compyear1` and `r compyear2`. We expect `r round(n.districts*tempdf2$est,1)` districts to have at least one human case between `r weekinquestionSunstr` `r weekinquestionSun` and `r weekinquestionSatstr` `r weekinquestionSat`.
 
 ```{r plotblah, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 proportion.positive.plot = function(tempdf, tempdf2, maxmosqyear, compyear1, compyear2, graphicoutputdir, weekinquestionSun){
