@@ -11,6 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 '%!in%' <- function(x,y)!('%in%'(x,y))
 round_any = function(x, accuracy, f=round){f(x/accuracy) * accuracy}
 options(warn=-1)
+
+RUN.NOW = 1
 ```
 
 ```{r createfunctions, include=FALSE}
@@ -20,11 +22,11 @@ simplifynames <- function(priornames=NULL) {
   priornames <- tolower(priornames)
   
   # remove spaces
-  priornames <- sub(pattern=" ", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern=" ", replacement="", x=priornames, fixed=TRUE)
   
   # remove district and parish
-  priornames <- sub(pattern="county", replacement="", x=priornames, fixed=TRUE)
-  priornames <- sub(pattern="parish", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="county", replacement="", x=priornames, fixed=TRUE)
+  priornames <- gsub(pattern="parish", replacement="", x=priornames, fixed=TRUE)
 
   # return names
   return(priornames)
@@ -37,7 +39,7 @@ packages <- c("reshape2", "ggplot2", "gridExtra",
               "lme4","pracma","dplyr","maptools",
               "raster","spdep","mgcv","sp","rgdal",
               "GISTools","data.table","splines","maps",
-              "broom","mapproj", "Hmisc")
+              "broom","mapproj", "Hmisc", "parallel")
 for (package in packages) {
     if (!require(package, character.only=T, quietly=T)) {
         install.packages(package, repos = "http://cran.us.r-project.org")
@@ -97,7 +99,17 @@ if (RUN.NOW == 1){
 
 ```{r setoptions, include=FALSE, echo=FALSE}
 
-ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, original.metrics = 0){
+ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, original.metrics = 0,
+modeltype = 'fixeddfcr', use.cluster = 0){
+# model type is either fixed df cubic regression spline or a thin-plate spline
+#modeltype <- "fixeddfcr" #thinplate
+  #**# ADD THIS TO DOCUMENTATION
+  #**# Add use.cluster to documentation. If 1, it will attempt to use parallel processing to speed up the human.data.2 calculations. Otherwise it will not. The original uses the cluster as the only option. Here the default was changed to not use it, as it caused problems on my machine.
+
+# where do we want the outputs?
+graphicoutputdir <- ".\\graphical outputs\\"
+fullcasematoutputdir <- ".\\case matrix with estimates\\"
+mosqmatoutputdir <- ".\\mosquito matrix with estimates\\"
 
  
   # where do we want the outputs?
@@ -134,13 +146,19 @@ ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, weath
   dlagdeg  <- 8
 
   results = NA
+
+  # Check that model type was properly defined
+  if (!(modeltype %in% c("fixeddfcr", "thinplate"))) {
+    stop(sprintf("ModelType must be 'fixeddfcr' or 'thinplate'. You entered %s", modeltype))
+    }
+  
   if (RUN.NOW == 0){
-    results = call.ArboMAP(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, graphicoutputdir, fullcasematoutputdir, mosqmatoutputdir, weekinquestionSun, weekinquestionSat, weekinquestionSunstr, weekinquestionSatstr, maxmosqyear, maxdesiredhumandate, maxdesiredhumandatestr, laglen, dlagdeg, original.metrics)
+    results = call.ArboMAP(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, graphicoutputdir, fullcasematoutputdir, mosqmatoutputdir, weekinquestionSun, weekinquestionSat, weekinquestionSunstr, weekinquestionSatstr, maxmosqyear, maxdesiredhumandate, maxdesiredhumandatestr, laglen, dlagdeg, original.metrics, modeltype, use.cluster)
   }
   
   # Create a list of inputs that can be used later as function inputs
   # This does not include inputs that were fed into the function, as those will already be in memory
-  inputs = list(graphicoutputdir, fullcasematoutputdir, mosqmatoutputdir, weekinquestionSun, weekinquestionSat, weekinquestionSunstr, weekinquestionSatstr, maxmosqyear, maxdesiredhumandate, maxdesiredhumandatestr, laglen, dlagdeg)
+  inputs = list(graphicoutputdir, fullcasematoutputdir, mosqmatoutputdir, weekinquestionSun, weekinquestionSat, weekinquestionSunstr, weekinquestionSatstr, maxmosqyear, maxdesiredhumandate, maxdesiredhumandatestr, laglen, dlagdeg, modeltype, use.cluster)
   
   return(list(results, inputs))
 }
@@ -161,6 +179,8 @@ if (RUN.NOW == 1){
   maxdesiredhumandatestr = inputs[[10]]
   laglen = inputs[[11]]
   dlagdeg = inputs[[12]]
+  modeltype = inputs[[13]]
+  use.cluster = inputs[[14]]
 }
 
 # In a separate if statement as weekinquestion is an ArboMAP input, so might be defined in a user's window prior to loading the ArboMAP code
@@ -175,13 +195,13 @@ if (!exists("graphicoutputdir")){
   maxdesiredhumandatestr = maxdesiredhumandate = -9999
   weekinquestionSun = weekinquestionSunstr = weekinquestionSatstr = -9999
   weekinquestionSat = as.Date("1900-01-01")
-
 }
-
+ 
 # Create a sub-function to contain all the individual function calls
-call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, graphicoutputdir, fullcasematoutputdir, mosqmatoutputdir, weekinquestionSun, weekinquestionSat, weekinquestionSunstr, weekinquestionSatstr, maxmosqyear, maxdesiredhumandate, maxdesiredhumandatestr, laglen, dlagdeg, original.metrics){
-  
-  #**# Place plots that would be knit into a pdf into a standalone pdf?
+call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, graphicoutputdir, fullcasematoutputdir, mosqmatoutputdir, weekinquestionSun, weekinquestionSat, weekinquestionSunstr, weekinquestionSatstr, maxmosqyear, maxdesiredhumandate, maxdesiredhumandatestr, laglen, dlagdeg, original.metrics, modeltype, use.cluster){
+
+  #**# NEED TO INTEGRATE modeltype into the function calls as necessary
+    
   # Call each chunks as a function
   
   # Read in weather data
@@ -226,10 +246,11 @@ call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, 
   mosq.by.month(wnv, infectglm, minmosqyear, maxmosqyear, compyear1, compyear2, graphicoutputdir, weekinquestionSun)
   
   # Second human data processing step
-  phd2 = process.human.data2(dailyextr, fullcasemat, randeffs, var1name, var2name, strata, maxdesiredhumandate, minmosqyear, maxmosqyear, laglen, graphicoutputdir, compyear1, compyear2, weekinquestionSun)
+  phd2 = process.human.data2(dailyextr, fullcasemat, randeffs, var1name, var2name, strata, maxdesiredhumandate, minmosqyear, maxmosqyear, laglen, graphicoutputdir, compyear1, compyear2, weekinquestionSun, use.cluster)
     tempdf = phd2[[1]]
     tempdf2 = phd2[[2]]
     fullcasemat = phd2[[3]]
+    firstreg = phd2[[4]]
 
   # Write human case matrix
   cm.out = write.case.matrix.and.calc.cases(fullcasemat, fullcasematoutputdir, maxmosqyear)
@@ -261,6 +282,13 @@ call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, 
   # compile the main results into the results object
   results = list(weeks.cases = Districts.With.Cases.Focal.Week, annual.positive.district.weeks = positivesthisyear, multiplier = multiplier, annual.human.cases = human.cases)
 
+  # Create the distributed lag plots
+  dist.lag.out = dist.lag.setup(firstreg)
+  lag1df = dist.lag.out[[1]]
+  lag2df = dist.lag.out[[2]]
+  
+  distributed.lag.plots(lag1df, lag2df, var1name, var2name)
+  
   return(results)
 }
 
@@ -790,7 +818,7 @@ The graphs below show observed statewide risk (black) and estimated risk (red) u
 
 ```{r humandata2, fig.width=7, fig.height=3.5, echo=FALSE, warnings=FALSE, include=TRUE, message = FALSE}
 
-process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2name, strata, maxdesiredhumandate, minmosqyear, maxmosqyear, laglen, graphicoutputdir, compyear1, compyear2, weekinquestionSun){
+process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2name, strata, maxdesiredhumandate, minmosqyear, maxmosqyear, laglen, graphicoutputdir, compyear1, compyear2, weekinquestionSun, use.cluster){
   
   # select which variables we're going to use!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   dailyextr <- data.frame(dailyextr)
@@ -800,26 +828,27 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
   dailyextr$district <- simplifynames(dailyextr$district)
   # fill in missing and future climatological data
   totaldailyextr <- expand.grid(district=unique(dailyextr$district),
-                                date=seq(from=as.Date("2003-01-01", "%Y-%m-%d"),
-                                         to=maxdesiredhumandate,
-                                         by=1))
+                              date=seq(from=as.Date("2003-01-01", "%Y-%m-%d"),
+                                       to=maxdesiredhumandate,
+                                       by=1))
   dailyextr <- merge(x=totaldailyextr, y=dailyextr,
-                     by.x=c("district","date"),
-                     by.y=c("district","date"),
-                     all.x=TRUE)
+                   by.x=c("district","date"),
+                   by.y=c("district","date"),
+                   all.x=TRUE)
   dailyextr$doy <- as.numeric(format(dailyextr$date, "%j"))
-  
+
   dailyextr <- group_by(dailyextr, district, doy)
   districtdoymean <- dplyr::summarize(dailyextr,
-                             meanvar1=mean(var1, na.rm=TRUE),
-                             meanvar2=mean(var2, na.rm=TRUE))
+                                    meanvar1=mean(var1, na.rm=TRUE),
+                                    meanvar2=mean(var2, na.rm=TRUE))
   dailyextr <- ungroup(dailyextr)                           
-  
+
   dailyextr <- left_join(dailyextr, districtdoymean,
-                     by=c("district","doy"))
-  
+                       by=c("district","doy"))
+
   dailyextr$var1[is.na(dailyextr$var1)] <- dailyextr$meanvar1[is.na(dailyextr$var1)]
   dailyextr$var2[is.na(dailyextr$var2)] <- dailyextr$meanvar2[is.na(dailyextr$var2)]
+
   
   # garbage collection
   rm(districtdoymean)
@@ -829,17 +858,17 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
   
   # we need the districts to be in lower case to merge with the gridMET data
   fullcasemat$district <- simplifynames(fullcasemat$district)
-  
+
   datalagger <- expand.grid(unique(fullcasemat$district),
-                            unique(fullcasemat$weekstartdate),
-                            seq(from=0, to=laglen-1, by=1))
+                          unique(fullcasemat$weekstartdate),
+                          seq(from=0, to=laglen-1, by=1))
   names(datalagger) <- c("district","date","lag")
   datalagger$laggeddate <- datalagger$date-datalagger$lag
-  
+
   datalagger <- left_join(datalagger, dailyextr,
-                          by=c("district"="district",
-                               "laggeddate"="date"))
-  
+                        by=c("district"="district",
+                             "laggeddate"="date"))
+
   # garbage collection
   rm(dailyextr)
   gc()
@@ -847,63 +876,60 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
   # pivot
   mean1data <- dcast(datalagger, district + date ~ lag, value.var="var1")
   names(mean1data) <- paste("var1_",names(mean1data),sep="")
-  head(mean1data)
-  
+head(mean1data)
+
   mean2data <- dcast(datalagger, district + date ~ lag, value.var="var2")
   names(mean2data) <- paste("var2_",names(mean2data),sep="")
   head(mean2data)
-  
+
   # garbage collection
   rm(datalagger)
   gc()
   
   # and put all this lagged info back into the total case matrix
   fullcasemat <- merge(x=fullcasemat, y=mean1data,
-                       by.x=c("district", "weekstartdate"),
-                       by.y=c("var1_district","var1_date"),
-                       all.x=TRUE)
+                     by.x=c("district", "weekstartdate"),
+                     by.y=c("var1_district","var1_date"),
+                     all.x=TRUE)
   fullcasemat <- merge(x=fullcasemat, y=mean2data,
-                       by.x=c("district", "weekstartdate"),
-                       by.y=c("var2_district","var2_date"),
+                     by.x=c("district", "weekstartdate"),
+                     by.y=c("var2_district","var2_date"),
+                     all.x=TRUE)
+
+  # turn these into matrices
+  fullcasemat$var1 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
+                                                pattern="var1_",
+                                                fixed=TRUE)])
+  fullcasemat$var2 <- as.matrix(fullcasemat[,grep(x=colnames(fullcasemat),
+                                                pattern="var2_",
+                                                fixed=TRUE)])
+  fullcasemat[,grep(x=colnames(fullcasemat), pattern="var1_", fixed=TRUE)] <- NULL
+  fullcasemat[,grep(x=colnames(fullcasemat), pattern="var2_", fixed=TRUE)] <- NULL
+  
+  # import strata
+  fullcasemat <- merge(x=fullcasemat, y=strata,
+                       by.x="district", by.y="district",
                        all.x=TRUE)
+  
+  # stratify covariates
+  for (curstrata in unique(fullcasemat$strata)) {
+    
+    fullcasemat[c(paste("dl_var1_", curstrata, sep=""))] <- fullcasemat$var1 * (fullcasemat$strata == curstrata)
+    fullcasemat[c(paste("dl_var2_", curstrata, sep=""))] <- fullcasemat$var2 * (fullcasemat$strata == curstrata)
+    
+  }
+  
+  # create lag matrix
+  fullcasemat$lag <- fullcasemat$var1
+  for (curcol in 1:dim(fullcasemat$lag)[2]) {
+    
+    fullcasemat$lag[,curcol] <- (curcol-1)
+    
+  }
   
   # garbage collection
   rm(mean1data)
   rm(mean2data)
-  gc()
-  
-  lagframe <- data.frame(x=seq(from=1, to=laglen, by=1))
-  alpha <- 1/4
-  distlagfunc <- ns(lagframe$x, intercept=TRUE,
-                    knots=quantile(lagframe$x,
-                                   probs=seq(from=alpha, to=1-alpha, by=alpha),
-                                   na.rm=TRUE))
-  #matplot(distlagfunc, type="l") #**# Commented out to suppress the plot
-  dlagdeg <- size(distlagfunc)[2]
-  
-  # create actual distributed lag summaries
-  band1summaries <- matrix(rep(0, nrow(fullcasemat)*dlagdeg), nrow(fullcasemat), dlagdeg)
-  band2summaries <- matrix(rep(0, nrow(fullcasemat)*dlagdeg), nrow(fullcasemat), dlagdeg)
-  
-  names(fullcasemat)
-  min1index <- which(names(fullcasemat) == "var1_0")
-  min2index <- which(names(fullcasemat) == "var2_0")
-  fullcasemat <- data.frame(fullcasemat)
-  band1temp <- as.matrix(fullcasemat[,(min1index:(min1index+laglen-1))])
-  band2temp <- as.matrix(fullcasemat[,(min2index:(min2index+laglen-1))])
-  for (j in 1:dlagdeg) {
-    
-    band1summaries[,j] <- band1temp %*% distlagfunc[,j]
-    band2summaries[,j] <- band2temp %*% distlagfunc[,j]
-    
-  }
-  
-  fullcasemat$band1summaries <- band1summaries
-  fullcasemat$band2summaries <- band2summaries
-  
-  # garbage collection
-  rm(band1summaries)
-  rm(band2summaries)
   gc()
   
   # include the mosquito summary statistic
@@ -911,10 +937,6 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
   stratayearmosq <- stratayearmosq[c("stratayear","mosqinfect")]
   names(stratayearmosq) <- c("stratayear","MIRsummarystat")
   
-  # import district identifiers
-  fullcasemat <- merge(x=fullcasemat, y=strata,
-                       by.x="district", by.y="district",
-                       all.x=TRUE)
   fullcasemat$year <- as.numeric(format(fullcasemat$weekstartdate, "%Y"))
   fullcasemat$stratayear <- paste(fullcasemat$strata, fullcasemat$year, sep=":")
   fullcasemat$year <- NULL
@@ -941,20 +963,52 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
 
   # get rid of districts that never have a positive case in the time period
   fullcasemat$doy <- as.numeric(format(fullcasemat$weekstartdate, "%j"))
-  firstreg  <- glm(anycases ~ 0+MIRsummarystat+district+
-                     band1summaries+
-                     band2summaries+
-                     band1summaries:doy+
-                     band2summaries:doy,
+  
+  # make sure district is a factor
+  fullcasemat$district <- factor(fullcasemat$district)
+  
+  # create formula
+  if (modeltype == "thinplace") {
+    
+    myformula <- paste("s(lag, by=",
+                       names(fullcasemat)[grep(x=names(fullcasemat),
+                                               pattern="dl_",
+                                               fixed=TRUE)],
+                       ", bs='tp')",sep="", collapse=" + ")
+    myformula <- paste("anycases ~ 0 + MIRsummarystat + district", myformula, sep=" + ")
+    myform <- as.formula(myformula)
+    
+  }
+  if (modeltype == "fixeddfcr") {
+    
+    myformula <- paste("s(lag, by=",
+                       names(fullcasemat)[grep(x=names(fullcasemat),
+                                               pattern="dl_",
+                                               fixed=TRUE)],
+                       ", bs='cr', fx=TRUE, k=6)",sep="", collapse=" + ")
+    myformula <- paste("anycases ~ 0 + MIRsummarystat + district", myformula, sep=" + ")
+    myform <- as.formula(myformula)
+    
+  }
+  
+  # Allow option to use cluster or not
+  if (use.cluster == 1){
+    cl <- makeCluster(detectCores(logical=FALSE)-1)
+    firstreg  <- bam(formula=myform,
+                     family=binomial(), data=fullcasemat,
+                     subset=observed==1,
+                     cluster=cl)
+    stopCluster(cl)
+  }else{
+    firstreg  <- bam(formula=myform,
                    family=binomial(), data=fullcasemat,
                    subset=observed==1)
-  
-  summary(firstreg)
+  }
   
   
   # show predictions
   preds <- predict(firstreg, type="link", newdata=fullcasemat, se.fit=TRUE, newlevels=TRUE)
-  fullcasemat$est <- predict(firstreg, type="response", newdata=fullcasemat, newlevels=TRUE)
+  fullcasemat$est <- 1/(1 + exp(-preds$fit))
   
   preds <- as.matrix(cbind(preds$fit, preds$se.fit))
   preds <- data.frame(preds)
@@ -967,13 +1021,14 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
   preds$lower <- 1 / (1 + exp(-preds$lower))
   preds$est <- 1 / (1 + exp(-preds$est))
   
-  
   tempfull <- fullcasemat
   tempfull$preds <- preds$est
   
   tempfull$month <- as.numeric(format(tempfull$weekstartdate, "%m"))
   tempfull <- tempfull[which(tempfull$month >= 6),]
   tempfull <- tempfull[which(tempfull$month <= 10),]
+  
+  #**# Where does tempfull actually get used? I do not see this variable called anywhere downstream
   
   tempdf <- data.frame(weekstartdate=fullcasemat$weekstartdate,
                        obs=fullcasemat$anycases,
@@ -1037,20 +1092,23 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
   tempdf2 <- thisyear[thisyear$weekstartdate >= weekinquestionSun,]
   tempdf2 <- tempdf2[1,]
   
-  return(list(tempdf, tempdf2, fullcasemat))
+  return(list(tempdf, tempdf2, fullcasemat, firstreg))
 }
 if (RUN.NOW == 1){
-  phd2 = process.human.data2(dailyextr, fullcasemat, randeffs, var1name, var2name, strata, maxdesiredhumandate, minmosqyear, maxmosqyear, laglen, graphicoutputdir, compyear1, compyear2, weekinquestionSun)
+  phd2 = process.human.data2(dailyextr, fullcasemat, randeffs, var1name, var2name, strata, maxdesiredhumandate, minmosqyear, maxmosqyear, laglen, graphicoutputdir, compyear1, compyear2, weekinquestionSun, use.cluster)
   tempdf = phd2[[1]]
   tempdf2 = phd2[[2]]
   fullcasemat = phd2[[3]]
+  firstreg = phd2[[4]]
 }
 
 if (!exists('tempdf2')){
   tempdf2 = data.frame(est = -9999)
+  firstreg = NA
 }
 
 ```
+
 
 ```{r echo=FALSE}
 write.case.matrix.and.calc.cases = function(fullcasemat, fullcasematoutputdir, maxmosqyear){
@@ -1323,6 +1381,65 @@ if (RUN.NOW == 1){
 
 ```
 
+We can visualize the distributed lags by stratum.
 
+```{r distributedlags, include=FALSE, echo=FALSE}
+dist.lag.setup = function(firstreg){
+  mygam <- plot(firstreg, select=1)
+  lag1df <- data.frame()
+  lag2df <- data.frame()
+  for (i in 1:length(mygam)) {
+    
+    thisplot <- mygam[[i]]
+    
+    if (grepl(x=thisplot$ylab,
+              pattern="var1_",
+              fixed=TRUE)) {
+      
+      newdf <- data.frame(fit=thisplot$fit,
+                          x  =thisplot$`x`,
+                          stratum=thisplot$ylab)
+      lag1df <- bind_rows(lag1df, newdf)
+      
+    }
+    
+    if (grepl(x=thisplot$ylab,
+              pattern="var2_",
+              fixed=TRUE)) {
+      
+      newdf <- data.frame(fit=thisplot$fit,
+                          x  =thisplot$`x`,
+                          stratum=thisplot$ylab)
+      lag2df <- bind_rows(lag2df, newdf)
+      
+    }
+    
+  }
+  return(list(lag1df, lag2df))
+}
 
+if (RUN.NOW == 1){
+  dist.lag.out = dist.lag.setup(firstreg)
+  lag1df = dist.lag.out[[1]]
+  lag2df = dist.lag.out[[2]]
+}
+if (RUN.NOW == 0){
+  lag1df = lag2df = NA
+}
+
+```
+
+```{r finalplots, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
+distributed.lag.plots = function(lag1df, lag2df, var1name, var2name){
+ggplot(lag1df) + geom_line(aes(x=x, y=fit, group=stratum, color=stratum)) +
+  ggtitle(paste("distributed lags on ", var1name))
+ggplot(lag2df) + geom_line(aes(x=x, y=fit, group=stratum, color=stratum)) +
+  ggtitle(paste("distributed lags on ", var2name))
+  
+}
+
+if(RUN.NOW == 1){
+  distributed.lag.plots(lag1df, lag2df, var1name, var2name)
+}
+```
 
