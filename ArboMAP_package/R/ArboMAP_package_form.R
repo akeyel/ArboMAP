@@ -9,11 +9,26 @@
 #' @name ArboMAP-package
 NULL
 
-#' Simplify Names
-#' 
-#' #**# Update documentation from main branch
+#' Simplify Names (ArboMAP)
 #'
-#'@export
+#' The simplify names function converts district names to a more consistent format.
+#' It does this by converting to lower case, removing spaces, removing "county" or "parish"
+#' from the district name.
+#'
+#' For example "New Haven County" and "new haven" would both be converted to "newhaven"
+#'
+#' It does not correct for abbreviations. For example, it would not correctly
+#' simplify Saint Lawrence, St. Lawrence and St Lawrence into a consistent name.
+#'
+#' It does not differentiate between repeat county names from different states.
+#' E.g. it would have no way to distinguish Jefferson County in Colorado from
+#' Jefferson County in New York.
+#'
+#' @details Written by J. Davis and M. Wimberly. Modified by A. Keyel. Original available at www.github.com/ecograph/ArboMAP. Used under GPL-3 license
+#'
+#' @param priornames A vector of names to be simplified
+#'
+#' @export simplifynames
 simplifynames <- function(priornames=NULL) {
 
   # convert to lower case
@@ -202,8 +217,25 @@ call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, 
 }
 
 
-# Data used for predictions
-## Weather data
+#' Read Weather Data (ArboMAP)
+#'
+#' Read in the ArboMAP formatted weather data. Data in county-year format for the RF1 model
+#' should be added using the files.to.add entry in the rf1.inputs object.
+#'
+#' Data in this format can be downloaded from Google Earth Engine, see ArboMAP documentation
+#' for instructions
+#'
+#' @details Written by J. Davis and M. Wimberly. Modified by A. Keyel. Original available at www.github.com/ecograph/ArboMAP. Used under GPL-3 license
+#'
+#' @param weatherpathstr A directory containing the weather data to be aggregated.
+#' The weather data can contain multiple files, and these can overlap in date range,
+#' as long as they all have the same columns.
+#' The weather data files in this folder should have a district column, a doy (day of year) column
+#' a year column, and then an entry for each independent variable of interest
+#' @param weathersummaryfile If this file is in weatherpathstr, it will be ignored.
+#' Note that no consolidated summary file is created.
+#'
+#' @export read.weather.data
 read.weather.data = function(weatherpathstr, weathersummaryfile){
   # load and concat files
   weatherlist <- list.files(path=weatherpathstr, pattern="(.csv)", recursive=FALSE)
