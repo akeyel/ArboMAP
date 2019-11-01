@@ -1,19 +1,19 @@
----
-title: "ArboMAP: Arbovirus Modeling and Prediction   \nto Forecast Mosquito-Borne Disease Outbreaks"
-author: "Summary of Model Outputs (v2.0)   \nJustin K. Davis and Michael C. Wimberly  \n(justinkdavis@ou.edu, mcwimberly@ou.edu)  \nGeography and Environmental Sustainability, University of Oklahoma"
-date: "Updated `r format(Sys.time(), '%B %d, %Y')`"
-output: pdf_document
----
+#' ArboMAP: Arbovirus Modeling and Prediction to Forecast Mosquito-Borne Disease Outbreaks
+#'
+#' Predict mosquito-borne disease outbreaks using distributed lags approach.
+#' 
+#' @details Code developed by JKD and MCW, Geography and Environmental Sustainability, University of Oklahoma.
+#' ACK reformatted the code to be in package format.
+#'
+#'@author Justin K. Davis, Michael C. Wimberly (justinkdavis@ou.edu, mcwimberly@ou.edu), Alexander C. Keyel (akeyel@albany.edu)
+#' @name ArboMAP-package
+NULL
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-# define some helpful functions
-'%!in%' <- function(x,y)!('%in%'(x,y))
-round_any = function(x, accuracy, f=round){f(x/accuracy) * accuracy}
-options(warn=-1)
-```
-
-```{r createfunctions, include=FALSE}
+#' Simplify Names
+#' 
+#' #**# Update documentation from main branch
+#'
+#'@export
 simplifynames <- function(priornames=NULL) {
 
   # convert to lower case
@@ -30,72 +30,13 @@ simplifynames <- function(priornames=NULL) {
   return(priornames)
   
 }
-```
 
-```{r libraries, include=FALSE}
-packages <- c("reshape2", "ggplot2", "gridExtra",
-              "lme4","pracma","dplyr","maptools",
-              "raster","spdep","mgcv","sp","rgdal",
-              "GISTools","data.table","splines","maps",
-              "broom","mapproj", "Hmisc")
-for (package in packages) {
-    if (!require(package, character.only=T, quietly=T)) {
-        install.packages(package, repos = "http://cran.us.r-project.org")
-        library(package, character.only=T)
-    }
-}
-```
+#packages <- c("reshape2", "ggplot2", "gridExtra",
+#              "lme4","pracma","dplyr","maptools",
+#              "raster","spdep","mgcv","sp","rgdal",
+#              "GISTools","data.table","splines","maps",
+#              "broom","mapproj", "Hmisc")
 
-``` {r include = FALSE, echo = FALSE}
-# Set option to run code as an R Markdown document or to just load functions for use externally
-# If set to 1, it will run the ArboMAP functions in their order in the markdown document.
-# If set to 0, it just loads the functions for use in other applications.
-# If undefined as a global variable, it will default to 0. This will make the default behavior
-# to only import functions and not generate a pdf
-if (!exists("RUN.NOW")){ RUN.NOW = 0 }
-
-# Set up inputs if running from this document
-if (RUN.NOW == 1){
-  # where are the human data located?
-  humandatafile <- ".\\human case data\\simulated human case data.csv"
-
-  # what is the date of the last human case we're willing to believe?
-  # probably, cut this off at the end of last year
-  # DO NOT use any human cases from the year you're modeling
-  maxobservedhumandate <- as.Date("2017-12-31", "%Y-%m-%d")
-
-  # which week are we producing the graphs for?
-  weekinquestion <- as.Date("2018-08-15", "%Y-%m-%d")
-
-  # where are the weather csv files stored?
-  weatherpathstr <- ".\\weather data\\"
-  # what is the name of the summary file to be created?
-  weathersummaryfile <- "weather data summary file.csv"
-
-  # which variables do you want to use?
-  var1name <- "tmeanc"
-  var2name <- "vpd"
-
-  # where are the mosquito test files located?
-  mosqfile <- ".\\mosquito data\\simulated mosquito tests.csv"
-
-  # which district stratification scheme are we using?
-  stratafile <- ".\\strata\\17-04-20 - classified strata - classic.csv"
-
-  # where is the districtshapefile
-  districtshapefile <- ".\\shapefile\\cb_2014_us_county_5m - in EPSG 5070 - only SD.shp"
-
-  # to which two other years do we want to compare the current year's predictions?
-  compyear1 <- 2012
-  compyear2 <- 2017
- 
-  results.path = "." 
-}
-
-
-```
-
-```{r setoptions, include=FALSE, echo=FALSE}
 #' ArboMAP (main external function call)
 #' 
 #' ArboMAP is a set of software to be used in the RStudio envionment to model and predict vector-borne diseases, especially arboviruses transmitted by mosquitoes. ArboMAP was developed by the EcoGRAPH research group at the University of Oklahoma with support from NASA. We are happy to answer your questions, and we would appreciate feedback on how these tools could be improved. Please contact justinkdavis@ou.edu for technical issues about the original code, or mcwimberly@ou.edu for questions about the arbovirus modeling project. For issues related to the package/function modifications, please contact akeyel@albany.edu.
@@ -121,12 +62,13 @@ if (RUN.NOW == 1){
 #' @param compyear2 The second comparison year
 #' @param results.path The path for the model results
 #' @param original.metrics 1 runs the code to correspond to the original version of ArboMAP. 0 makes departures from the code for the calculation of number of human cases predicted in the year
-#' @param modeltype The type of model to be used. Choices are 'fixeddfcr' for a fixed df cubic regression spline or 'thinplate' for a thin-plate spline. 'fixeddfcr' is the default.
-#' @param use.cluster Indicator variable. If 1, the code will attempt to use parallel processing for the second human data step. Otherwise it will not. 0 is the default.
 #'
 #'@export ArboMAP
 ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, original.metrics = 0){
-
+# inputs coming in a future version of ArboMAP
+#  #' @param modeltype The type of model to be used. Choices are 'fixeddfcr' for a fixed df cubic regression spline or 'thinplate' for a thin-plate spline. 'fixeddfcr' is the default.
+#  #' @param use.cluster Indicator variable. If 1, the code will attempt to use parallel processing for the second human data step. Otherwise it will not. 0 is the default.
+  
  
   # where do we want the outputs?
   graphicoutputdir <- sprintf("%s\\graphical outputs\\", results.path)
@@ -171,39 +113,6 @@ ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, weath
   inputs = list(graphicoutputdir, fullcasematoutputdir, mosqmatoutputdir, weekinquestionSun, weekinquestionSat, weekinquestionSunstr, weekinquestionSatstr, maxmosqyear, maxdesiredhumandate, maxdesiredhumandatestr, laglen, dlagdeg)
   
   return(list(results, inputs))
-}
-
-# Run code if running as a Markdown file
-if (RUN.NOW == 1){
-  out = ArboMAP(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, original.metrics = 1)
-  inputs = out[[2]] 
-  graphicoutputdir = inputs[[1]]
-  fullcasematoutputdir = inputs[[2]]
-  mosqmatoutputdir = inputs[[3]]
-  weekinquestionSun = inputs[[4]]
-  weekinquestionSat = inputs[[5]]
-  weekinquestionSunstr = inputs[[6]]
-  weekinquestionSatstr = inputs[[7]]
-  maxmosqyear = inputs[[8]]
-  maxdesiredhumandate = inputs[[9]]
-  maxdesiredhumandatestr = inputs[[10]]
-  laglen = inputs[[11]]
-  dlagdeg = inputs[[12]]
-}
-
-# In a separate if statement as weekinquestion is an ArboMAP input, so might be defined in a user's window prior to loading the ArboMAP code
-if (!exists("weekinquestion")){
-  weekinquestion = -9999
-}
-
-if (!exists("graphicoutputdir")){
-  var1name = var2name = "NOT DEFINED"
-  compyear1 = -9999
-  compyear2 = -9999# Adding a second check, as maxmosqyear will have been defined above for a previous input, but some of the other variables may not have been
-  maxdesiredhumandatestr = maxdesiredhumandate = -9999
-  weekinquestionSun = weekinquestionSunstr = weekinquestionSatstr = -9999
-  weekinquestionSat = as.Date("1900-01-01")
-
 }
 
 # Create a sub-function to contain all the individual function calls
@@ -293,12 +202,8 @@ call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, 
 }
 
 
-```
-
 # Data used for predictions
 ## Weather data
-
-```{r weatherdataload, include=FALSE, echo=TRUE}
 read.weather.data = function(weatherpathstr, weathersummaryfile){
   # load and concat files
   weatherlist <- list.files(path=weatherpathstr, pattern="(.csv)", recursive=FALSE)
@@ -324,20 +229,6 @@ read.weather.data = function(weatherpathstr, weathersummaryfile){
   return(weather)
 }
 
-if (RUN.NOW == 1){
-  weather = read.weather.data(weatherpathstr, weathersummaryfile)
-}
-
-# Check for an existing weather object - only add the -9999 if it isn't there
-if (!exists("weather")){
-  weather = data.frame(date = -9999) # NEED A WEATHER OBJECT FOR THE TEXT, even if RUN.NOW is set to 0.
-}
-
-```
-
-Weather data from the gridMET data set range from `r min(weather$date, na.rm=TRUE)` to `r max(weather$date, na.rm=TRUE)`. Below are graphs of statewide daily averages of `r var1name` and `r var2name`. Observations for the current year are in red. Black is the medium from all other years, and the grey band indicates the max/min ever observed.
-
-```{r weatherplots, fig.width=7, fig.height=5, echo=FALSE, message = FALSE}
 
 plot.weather.data = function(weather, graphicoutputdir, weekinquestionSun){
   # plot normals and this year
@@ -407,17 +298,6 @@ plot.weather.data = function(weather, graphicoutputdir, weekinquestionSun){
   return(dailyextr)
 }
 
-
-if (RUN.NOW == 1){
-  dailyextr = plot.weather.data(weather, graphicoutputdir, weekinquestionSun) 
-}
-```
-
-\newpage
-## Vector infection data
-
-```{r mosquitodataprocess, echo=FALSE}
-
 vector.infection.data = function(mosqfile, maxmosqyear){
   # Allow input of an R object instead of a .csv file
   if (typeof(mosqfile) == "character"){
@@ -468,31 +348,6 @@ vector.infection.data = function(mosqfile, maxmosqyear){
   wnv.out = list(wnv, nrow2, nrow3, minmosqyear, numpos, perpos)  
 }
 
-if (RUN.NOW == 1){
-  wnv.out = vector.infection.data(mosqfile, maxmosqyear)
-  wnv = wnv.out[[1]]
-  nrow2 = wnv.out[[2]]
-  nrow3 = wnv.out[[3]]
-  minmosqyear = wnv.out[[4]]
-  numpos = wnv.out[[5]]
-  perpos = wnv.out[[6]]
-}
-
-# If just loading data as functions, these will not be defined, but knittr will still try to incorporate the text
-# Use fillers.
-if (!exists("nrow2")){
-  nrow2 = -9999
-  maxmosqyear = -9999
-  nrow3 = -9999
-  numpos = -9999
-  perpos = -9999
-}
-
-```
-
-There are `r nrow2` samples in the vector testing database. For `r maxmosqyear`, there are `r nrow3` tested samples, with `r numpos` (`r perpos`%) positive. The estimated risk of human infection due to the early-season vector infection growth rate is shown below. Higher means that the pathogen is spreading more rapidly among vectors, and more human cases should be expected. The regions used for stratification are mapped below; districts are thought to share risk more closely with others in the same strata, although all districts share some level of risk with all other districts.  
-
-```{r mosquitodataprocess2, fig.width=7, fig.height=3, echo=FALSE, include=FALSE}
 mosquito.data.process2 = function(wnv, stratafile, mosqmatoutputdir, graphicoutputdir, weekinquestionSun, minmosqyear, maxmosqyear){
   # import district identifiers
   strata <- read.csv(stratafile)
@@ -557,17 +412,6 @@ mosquito.data.process2 = function(wnv, stratafile, mosqmatoutputdir, graphicoutp
   return(list(wnv, infectglm, randeffs, strata))
 }
 
-if (RUN.NOW == 1){
-  mdp2 = mosquito.data.process2(wnv, stratafile, mosqmatoutputdir, graphicoutputdir, weekinquestionSun, minmosqyear, maxmosqyear)
-  wnv = mdp2[[1]]
-  infectglm = mdp2[[2]]
-  randeffs = mdp2[[3]]
-  strata = mdp2[[4]]
-}
-
-```
-
-```{r humandata, include=TRUE, echo=FALSE, message = FALSE, warnings = FALSE, fig.width=7, fig.height=3}
 process.human.data = function(humandatafile, maxdesiredhumandate, maxobservedhumandate, minmosqyear, maxmosqyear, weekinquestionSun, districtshapefile, stratafile, graphicoutputdir){
   
   # import data
@@ -682,22 +526,6 @@ process.human.data = function(humandatafile, maxdesiredhumandate, maxobservedhum
   return(human.out)
 }
 
-if (RUN.NOW == 1){
-  human.out = process.human.data(humandatafile, maxdesiredhumandate, maxobservedhumandate, minmosqyear, maxmosqyear, weekinquestionSun, districtshapefile, stratafile, graphicoutputdir)
-  fullcasemat = human.out[[1]]
-  projected_districts.df = human.out[[2]]
-  totcase = human.out[[3]]
-  observedfraction = human.out[[4]]
-}
-
-if (!exists("totcase")){
-  totcase = observedfraction = -9999
-}
-
-
-```
-
-```{r, echo = FALSE}
 # Calculate the relationship between positive districts to human cases in that year
 positive.districts.to.human.cases = function(wnv, fullcasemat){
   
@@ -734,11 +562,6 @@ positive.districts.to.human.cases = function(wnv, fullcasemat){
   
 }
 
-```
-
-The following graph shows the estimated growth of positive samples for every year (grey), with `r compyear1` (blue) and `r compyear2` (blue, dashed) selected for comparison, and estimates and observations for `r maxmosqyear` (red). The lines are modeled sample positive rates; the actual statewide positive sample rate for `r maxmosqyear` is shown here by grouping observations nearby in time.
-
-```{r mosqbymonth, include=TRUE, echo=FALSE, fig.width=6, fig.height=3, message = FALSE}
 mosq.by.month = function(wnv, infectglm, minmosqyear, maxmosqyear, compyear1, compyear2, graphicoutputdir, weekinquestionSun){
   
   mosqmopreds <- expand.grid(strata=unique(wnv$strata),
@@ -797,26 +620,6 @@ mosq.by.month = function(wnv, infectglm, minmosqyear, maxmosqyear, compyear1, co
   ggsave(sprintf("%smosqinfectgrowthrates_%s.png", graphicoutputdir, weekinquestionSun), thisplot)
 
 }
-
-if (RUN.NOW == 1){
-  mosq.by.month(wnv, infectglm, minmosqyear, maxmosqyear, compyear1, compyear2, graphicoutputdir, weekinquestionSun)
-}
-
-```
-
-
-
-## Human data
-
-The predictive model of human cases was calibrated using `r totcase` historical cases, not including any cases from `r maxmosqyear`. No cases from `r maxmosqyear` are used to make predictions; the estimates for this year are based solely on weather and vector data. Typically, `r observedfraction`% of a year's cases occur before the end of this week in any given year.
-
-# Model results
-
-## Statewide trends
-
-The graphs below show observed statewide risk (black) and estimated risk (red) up to `r maxdesiredhumandatestr` `r maxdesiredhumandate`. Observed risk should be completely zero during the last year - these data are not used in the model, and will only be updated once final human case data are received at the end of the year.
-
-```{r humandata2, fig.width=7, fig.height=3.5, echo=FALSE, warnings=FALSE, include=TRUE, message = FALSE}
 
 process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2name, strata, maxdesiredhumandate, minmosqyear, maxmosqyear, laglen, graphicoutputdir, compyear1, compyear2, weekinquestionSun){
   
@@ -1067,20 +870,7 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
   
   return(list(tempdf, tempdf2, fullcasemat))
 }
-if (RUN.NOW == 1){
-  phd2 = process.human.data2(dailyextr, fullcasemat, randeffs, var1name, var2name, strata, maxdesiredhumandate, minmosqyear, maxmosqyear, laglen, graphicoutputdir, compyear1, compyear2, weekinquestionSun)
-  tempdf = phd2[[1]]
-  tempdf2 = phd2[[2]]
-  fullcasemat = phd2[[3]]
-}
 
-if (!exists('tempdf2')){
-  tempdf2 = data.frame(est = -9999)
-}
-
-```
-
-```{r echo=FALSE}
 write.case.matrix.and.calc.cases = function(fullcasemat, fullcasematoutputdir, maxmosqyear){
   write.csv(x=fullcasemat[c("district","weekstartdate",
                             "anycases","totalcases", "est")],
@@ -1098,24 +888,6 @@ write.case.matrix.and.calc.cases = function(fullcasemat, fullcasematoutputdir, m
   return(list(fullcasemat, positivesthisyear, multiplier, casesthisyear))
 }
 
-if (RUN.NOW == 1){
-  cm.out = write.case.matrix.and.calc.cases(fullcasemat, fullcasematoutputdir, maxmosqyear)
-  fullcasemat = cm.out[[1]]
-  positivesthisyear = cm.out[[2]]
-  multiplier = cm.out[[3]]
-  casesthisyear = cm.out[[4]]
-  n.districts = length(unique(wnv$district))
-}
-
-if (!exists("positivesthisyear")){
-  positivesthisyear = multiplier = casesthisyear = n.districts = -9999
-}
-
-```
-
-Predictions for `r maxmosqyear` are compared to observations in `r compyear1` and `r compyear2`. We expect `r round(n.districts*tempdf2$est,1)` districts to have at least one human case between `r weekinquestionSunstr` `r weekinquestionSun` and `r weekinquestionSatstr` `r weekinquestionSat`.
-
-```{r plotblah, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5}
 proportion.positive.plot = function(tempdf, tempdf2, maxmosqyear, compyear1, compyear2, graphicoutputdir, weekinquestionSun){
 
   thisplot <- ggplot(tempdf) + geom_line(data=tempdf, aes(x=weekstartdate,
@@ -1137,8 +909,6 @@ proportion.positive.plot = function(tempdf, tempdf2, maxmosqyear, compyear1, com
                   "\nwith week beginning ", weekinquestionSun, " highlighted", sep="")) +
     theme(axis.text.x = element_text(hjust=-1.25))
   plot(thisplot1)
-  #```
-  #```{r silentsave12899234, include=FALSE, echo=FALSE}
   thisplot2 <- thisplot + theme(legend.position="bottom") +
     theme(axis.text.x = element_text(hjust=-0.50))
   ggsave(sprintf("%sestimates_%s.png", graphicoutputdir, weekinquestionSun), thisplot2,
@@ -1148,24 +918,6 @@ proportion.positive.plot = function(tempdf, tempdf2, maxmosqyear, compyear1, com
   return(thisplot2)  
 }
 
-if (RUN.NOW == 1){
-  thisplot2 = proportion.positive.plot(tempdf,tempdf2, maxmosqyear, compyear1, compyear2, graphicoutputdir, weekinquestionSun)
-}
-
-```
-
-``` {r echo=FALSE}
-#The outputs below are generated by write.case.matrix.and.calc.cases. It was moved higher up in the code, as I wanted to use the multiplier variable sooner.
-```
-
-We expect that there will be `r positivesthisyear` positive district-weeks this year. If we assume that each positive district-week corresponds to `r multiplier` cases, which is an estimate based on historical data, then this yields a total of `r casesthisyear` cases estimated for `r maxmosqyear`.
-
-\newpage
-## Results for `r weekinquestionSun` to `r format(weekinquestionSat, "%m-%d")`
-
-We visualize the raw estimated risk for `r weekinquestion` below. If a district is darkest blue, then we estimate that there should be no human cases reported for this district, during this week. If a district is brightest red, we are certain that there will be at least one human case reported for this district, during this week.
-
-```{r shapefile, include=TRUE, echo=FALSE, warnings=FALSE, message = FALSE, fig.width=7, fig.height=3.5}
 make.raw.risk.map = function(districtshapefile, fullcasemat, graphicoutputdir, weekinquestionSun){
   district_shapes <- readShapePoly(districtshapefile)
   district_shapes$NAME <- simplifynames(district_shapes$NAME)
@@ -1213,15 +965,6 @@ make.raw.risk.map = function(districtshapefile, fullcasemat, graphicoutputdir, w
   ggsave(sprintf("%smap absolute_%s.png", graphicoutputdir, weekinquestionSun), thisplot)
 }
 
-if (RUN.NOW == 1){
-  make.raw.risk.map(districtshapefile, fullcasemat, graphicoutputdir, weekinquestionSun)
-}
-
-```
-
-This map indicates whether probabilities reported in the previous map are higher (red) than average, lower (blue) than average, or right about normal (yellow) compared to the same week in previous years.
-
-```{r riskcalcs, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5, warnings = FALSE, message = FALSE}
 make.riskcalcs = function(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, weekinquestionSun, thisplot2){
   
   thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
@@ -1344,13 +1087,6 @@ make.riskcalcs = function(fullcasemat, weekinquestion, projected_districts.df, g
   #        height=4)
 
 }
-
-if (RUN.NOW == 1){
-  make.riskcalcs(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, weekinquestionSun, thisplot2)
-}
-
-```
-
 
 
 
