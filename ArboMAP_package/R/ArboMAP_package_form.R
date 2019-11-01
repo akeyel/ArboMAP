@@ -994,7 +994,7 @@ make.raw.risk.map = function(districtshapefile, fullcasemat, graphicoutputdir, w
   ggsave(sprintf("%smap absolute_%s.png", graphicoutputdir, weekinquestionSun), thisplot)
 }
 
-make.riskcalcs = function(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, weekinquestionSun, thisplot2){
+make.riskcalcs = function(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, weekinquestionSun, weekinquestionSat, thisplot2){
   
   thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
   thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
