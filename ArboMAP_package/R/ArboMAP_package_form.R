@@ -118,11 +118,8 @@ ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, weath
   laglen   <- 181
   dlagdeg  <- 8
 
-  results = NA
-  if (RUN.NOW == 0){
-    results = call.ArboMAP(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, graphicoutputdir, fullcasematoutputdir, mosqmatoutputdir, weekinquestionSun, weekinquestionSat, weekinquestionSunstr, weekinquestionSatstr, maxmosqyear, maxdesiredhumandate, maxdesiredhumandatestr, laglen, dlagdeg, original.metrics)
-  }
-  
+  results = call.ArboMAP(humandatafile, mosqfile, districtshapefile, stratafile, weatherpathstr, weathersummaryfile, maxobservedhumandate, weekinquestion, var1name, var2name, compyear1, compyear2, results.path, graphicoutputdir, fullcasematoutputdir, mosqmatoutputdir, weekinquestionSun, weekinquestionSat, weekinquestionSunstr, weekinquestionSatstr, maxmosqyear, maxdesiredhumandate, maxdesiredhumandatestr, laglen, dlagdeg, original.metrics)
+
   # Create a list of inputs that can be used later as function inputs
   # This does not include inputs that were fed into the function, as those will already be in memory
   inputs = list(graphicoutputdir, fullcasematoutputdir, mosqmatoutputdir, weekinquestionSun, weekinquestionSat, weekinquestionSunstr, weekinquestionSatstr, maxmosqyear, maxdesiredhumandate, maxdesiredhumandatestr, laglen, dlagdeg)
