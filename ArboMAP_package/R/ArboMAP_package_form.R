@@ -193,8 +193,8 @@ call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, 
   # Create the raw risk map
   make.raw.risk.map(districtshapefile, fullcasemat, graphicoutputdir, weekinquestionSun)
 
-  # Create the relative risk map #**# Disabled - getting an error in prettyNum(...) invalid 'trim' argument
-  #make.riskcalcs(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, weekinquestionSun, thisplot2)
+  # Create the relative risk map
+  make.riskcalcs(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, weekinquestionSun, weekinquestionSat, thisplot2)
 
   # Calculate number of cases expected for the week
   n.districts = length(unique(wnv$district))

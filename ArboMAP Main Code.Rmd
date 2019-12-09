@@ -273,7 +273,7 @@ call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, 
   make.raw.risk.map(districtshapefile, fullcasemat, graphicoutputdir, weekinquestionSun)
 
   # Create the relative risk map
-  make.riskcalcs(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, weekinquestionSun, thisplot2)
+  make.riskcalcs(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, weekinquestionSun, weekinquestionSat, thisplot2)
 
   # Calculate number of cases expected for the week
   n.districts = length(unique(wnv$district))
@@ -1222,7 +1222,7 @@ if (RUN.NOW == 1){
 This map indicates whether probabilities reported in the previous map are higher (red) than average, lower (blue) than average, or right about normal (yellow) compared to the same week in previous years.
 
 ```{r riskcalcs, include=TRUE, echo=FALSE, fig.width=7, fig.height=3.5, warnings = FALSE, message = FALSE}
-make.riskcalcs = function(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, weekinquestionSun, thisplot2){
+make.riskcalcs = function(fullcasemat, weekinquestion, projected_districts.df, graphicoutputdir, weekinquestionSun, weekinquestionSat, thisplot2){
   
   thisweek <- fullcasemat[fullcasemat$weekstartdate >= weekinquestion,]
   thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
