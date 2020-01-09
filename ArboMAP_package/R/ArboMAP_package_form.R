@@ -259,7 +259,7 @@ read.weather.data = function(weatherpathstr, weathersummaryfile){
 }
 
 
-plot.weather.data = function(weather, graphicoutputdir, weekinquestionSun){
+plot.weather.data = function(weather, graphicoutputdir, weekinquestionSun, var1name, var2name){
   # plot normals and this year
   weather <- group_by(weather,
                     doy)
