@@ -141,7 +141,7 @@ call.ArboMAP = function(humandatafile, mosqfile, districtshapefile, stratafile, 
   
   
   # Plot weather data and create daily extremes object
-  dailyextr = plot.weather.data(weather, graphicoutputdir, weekinquestionSun)
+  dailyextr = plot.weather.data(weather, graphicoutputdir, weekinquestionSun, var1name, var2name)
   
   # Calculate vector infection data
   wnv.out = vector.infection.data(mosqfile, maxmosqyear)
