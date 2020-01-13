@@ -9,6 +9,11 @@
 #' @name ArboMAP-package
 NULL
 
+#' @import ggplot2
+#' @importFrom graphics plot
+#' @importFrom stats aggregate approx binomial glm lm predict quantile
+#' @importFrom utils head read.csv write.csv
+
 #' Simplify Names (ArboMAP)
 #'
 #' The simplify names function converts district names to a more consistent format.
@@ -242,7 +247,7 @@ read.weather.data = function(weatherpathstr, weathersummaryfile){
     if (weatherlist[[i]] != weathersummaryfile) {
   
       tempdf <- read.csv(paste(weatherpathstr, weatherlist[[i]], sep="")) 
-      weather <- bind_rows(weather, tempdf)  
+      weather <- dplyr::bind_rows(weather, tempdf)  
     
     }
   
@@ -273,7 +278,7 @@ plot.weather.data = function(weather, graphicoutputdir, weekinquestionSun, var1n
                      min_tmeanc = min(tmeanc, na.rm=TRUE),
                      min_rmean  = min(rmean,  na.rm=TRUE),
                      min_vpd    = min(vpd,    na.rm=TRUE))
-  weather <- ungroup(weather)
+  weather <- dplyr::ungroup(weather)
 
   thisyear <- max(weather$year, na.rm=TRUE)
   thisyear <- subset(weather, year == thisyear)
@@ -311,7 +316,7 @@ plot.weather.data = function(weather, graphicoutputdir, weekinquestionSun, var1n
                 max(weather$year, na.rm=TRUE),
                 sep=" ")) +
     xlab("Day of the year") + ylab(var2name)
-  grid.arrange(plot1, plot2, nrow=2)
+  gridExtra::grid.arrange(plot1, plot2, nrow=2)
 
   # simplify the district names
   weather$district <- simplifynames(weather$district)
@@ -403,7 +408,7 @@ mosquito.data.process2 = function(wnv, stratafile, mosqmatoutputdir, graphicoutp
   wnv <- wnv[!is.na(wnv$year),]
 
   # run a random effect model on orthogonalized data
-  infectglm <- glmer(wnv_result ~ 1+dminus+
+  infectglm <- lme4::glmer(wnv_result ~ 1+dminus+
                     (0+1|year) +
                     (0+dminus|year) +
                     (0+1|strata:year) + 
@@ -512,20 +517,20 @@ process.human.data = function(humandatafile, maxdesiredhumandate, maxobservedhum
   weekinquestionreformat <- format(weekinquestionSun, "%m-%d")
   observedfraction <- 100*round(observedbefore / observedtotal, 2)
 
-  district_shapes <- readShapePoly(districtshapefile)
+  district_shapes <- maptools::readShapePoly(districtshapefile)
   # simplify name
   district_shapes$district <- simplifynames(district_shapes$NAME)
   crs(district_shapes) <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80     +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
   projected_districts <- spTransform(district_shapes, crs("+proj=longlat +datum=WGS84 +no_defs"))
   projected_districts@data$id = rownames(projected_districts@data)
-  projected_districts.df <- tidy(projected_districts)
-  projected_districts.df <- left_join(projected_districts.df, projected_districts@data, by="id")
+  projected_districts.df <- broom::tidy(projected_districts)
+  projected_districts.df <- dplyr::left_join(projected_districts.df, projected_districts@data, by="id")
   
   stratamapcsv <- read.csv(stratafile)
   stratamapcsv$district <- simplifynames(stratamapcsv$district)
   stratamapcsv <- stratamapcsv[c("district", "strata")]
   
-  projected_districts.df <- left_join(projected_districts.df, stratamapcsv,
+  projected_districts.df <- dplyr::left_join(projected_districts.df, stratamapcsv,
                                      by="district")
   
   if (length(projected_districts.df$strata) == 0){
@@ -600,7 +605,7 @@ mosq.by.month = function(wnv, infectglm, minmosqyear, maxmosqyear, compyear1, co
   mosqmopreds$dminus <- mosqmopreds$doy - mean(wnv$doy, na.rm=TRUE)
   mosqmopreds$preds <- predict(infectglm, newdata=mosqmopreds, type="response", allow.new.levels=TRUE)
   
-  mosqmopreds <- group_by(mosqmopreds, dminus, year)
+  mosqmopreds <- dplyr::group_by(mosqmopreds, dminus, year)
   mosqmopreds <- dplyr::summarize(mosqmopreds,
                            preds=mean(preds, na.rm=TRUE),
                            doy=mean(doy, na.rm=TRUE))
@@ -612,8 +617,8 @@ mosq.by.month = function(wnv, infectglm, minmosqyear, maxmosqyear, compyear1, co
   
   if (sum(!is.na(thisyeardot$doy)) > 20) {
   
-    thisyeardot$rounddoy <- cut2(thisyeardot$doy, g=6)
-    thisyeardot <- group_by(thisyeardot, rounddoy)
+    thisyeardot$rounddoy <- Hmisc::cut2(thisyeardot$doy, g=6)
+    thisyeardot <- dplyr::group_by(thisyeardot, rounddoy)
     thisyeardot <- dplyr::summarize(thisyeardot,
                           meanpos = mean(wnv_result, na.rm=TRUE),
                           meandoy = mean(doy, na.rm=TRUE))
@@ -669,13 +674,13 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
                      all.x=TRUE)
   dailyextr$doy <- as.numeric(format(dailyextr$date, "%j"))
   
-  dailyextr <- group_by(dailyextr, district, doy)
+  dailyextr <- dplyr::group_by(dailyextr, district, doy)
   districtdoymean <- dplyr::summarize(dailyextr,
                              meanvar1=mean(var1, na.rm=TRUE),
                              meanvar2=mean(var2, na.rm=TRUE))
-  dailyextr <- ungroup(dailyextr)                           
+  dailyextr <- dplyr::ungroup(dailyextr)                           
   
-  dailyextr <- left_join(dailyextr, districtdoymean,
+  dailyextr <- dplyr::left_join(dailyextr, districtdoymean,
                      by=c("district","doy"))
   
   dailyextr$var1[is.na(dailyextr$var1)] <- dailyextr$meanvar1[is.na(dailyextr$var1)]
@@ -696,7 +701,7 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
   names(datalagger) <- c("district","date","lag")
   datalagger$laggeddate <- datalagger$date-datalagger$lag
   
-  datalagger <- left_join(datalagger, dailyextr,
+  datalagger <- dplyr::left_join(datalagger, dailyextr,
                           by=c("district"="district",
                                "laggeddate"="date"))
   
@@ -705,7 +710,7 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
   gc()
   
   # pivot
-  mean1data <- dcast(datalagger, district + date ~ lag, value.var="var1")
+  mean1data <- data.table::dcast(datalagger, district + date ~ lag, value.var="var1")
   names(mean1data) <- paste("var1_",names(mean1data),sep="")
   head(mean1data)
   
@@ -838,11 +843,11 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
   tempdf <- data.frame(weekstartdate=fullcasemat$weekstartdate,
                        obs=fullcasemat$anycases,
                        est=preds$est)
-  tempdf <- group_by(tempdf, weekstartdate)
+  tempdf <- dplyr::group_by(tempdf, weekstartdate)
   tempdf <- dplyr::summarize(tempdf,
                       obs=mean(obs, na.rm=TRUE),
                       est=mean(est, na.rm=TRUE))
-  tempdf <- ungroup(tempdf)
+  tempdf <- dplyr::ungroup(tempdf)
   tempdf2 <- tempdf
   tempdf2$week <- as.numeric(format(tempdf2$weekstartdate, "%U"))
   lowe <- 12
@@ -869,7 +874,7 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
   ggsave(sprintf("%spredictions_%s.png", graphicoutputdir, weekinquestionSun), thisplot)
   
   tempdf <- fullcasemat
-  tempdf <- group_by(tempdf, weekstartdate)
+  tempdf <- dplyr::group_by(tempdf, weekstartdate)
   tempdf <- dplyr::summarize(tempdf,
                       obs=mean(anycases, na.rm=TRUE),
                       est=mean(est, na.rm=TRUE))
@@ -886,7 +891,7 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
   comparison1$weekstartdate <- comparison1$weekstartdate + (maxmosqyear - compyear1)*365
   comparison2$weekstartdate <- comparison2$weekstartdate + (maxmosqyear - compyear2)*365
   
-  tempdf <- bind_rows(thisyear,
+  tempdf <- dplyr::bind_rows(thisyear,
                       comparison1,
                       comparison2)
   
@@ -948,13 +953,13 @@ proportion.positive.plot = function(tempdf, tempdf2, maxmosqyear, compyear1, com
 }
 
 make.raw.risk.map = function(districtshapefile, fullcasemat, graphicoutputdir, weekinquestionSun){
-  district_shapes <- readShapePoly(districtshapefile)
+  district_shapes <- maptools::readShapePoly(districtshapefile)
   district_shapes$NAME <- simplifynames(district_shapes$NAME)
   crs(district_shapes) <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80     +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
-  projected_districts <- spTransform(district_shapes, crs("+proj=longlat +datum=WGS84 +no_defs"))
+  projected_districts <- rgdal::spTransform(district_shapes, crs("+proj=longlat +datum=WGS84 +no_defs"))
   projected_districts@data$id = rownames(projected_districts@data)
-  projected_districts.df <- tidy(projected_districts)
-  projected_districts.df <- left_join(projected_districts.df, projected_districts@data, by="id")
+  projected_districts.df <- broom::tidy(projected_districts)
+  projected_districts.df <- dplyr::left_join(projected_districts.df, projected_districts@data, by="id")
   projected_districts.df$district <- simplifynames(projected_districts.df$NAME)
   
   # get this week's predictions
@@ -962,7 +967,7 @@ make.raw.risk.map = function(districtshapefile, fullcasemat, graphicoutputdir, w
   thisweek <- thisweek[thisweek$weekstartdate == min(thisweek$weekstartdate, na.rm=TRUE),]
   thisweek <- thisweek[c("district", "est")]
   
-  projected_districts.df <- left_join(projected_districts.df, thisweek,
+  projected_districts.df <- dplyr::left_join(projected_districts.df, thisweek,
                                      by="district")
   projected_districts.df$est[is.na(projected_districts.df$est)] <- min(projected_districts.df$est, na.rm=TRUE)
   #```
@@ -1020,7 +1025,7 @@ make.riskcalcs = function(fullcasemat, weekinquestion, projected_districts.df, g
                                           y=thisdf$est,
                                           xout=approxdoy)$y)
         
-        doypreds <- bind_rows(doypreds, tempdf)
+        doypreds <- dplyr::bind_rows(doypreds, tempdf)
         
       }
       
@@ -1034,7 +1039,7 @@ make.riskcalcs = function(fullcasemat, weekinquestion, projected_districts.df, g
     tempdf <- doypreds[doypreds$district == curdistrict,]
     tempdf$percentile <- rank(tempdf$est, ties.method="random") / length(tempdf$est)
     
-    doypreds2 <- bind_rows(doypreds2, tempdf)
+    doypreds2 <- dplyr::bind_rows(doypreds2, tempdf)
     
   }
   doypreds <- doypreds2
@@ -1045,7 +1050,7 @@ make.riskcalcs = function(fullcasemat, weekinquestion, projected_districts.df, g
   doypreds$riskcategory[doypreds$percentile <= riskalpha/2] <- " Lower than usual    "
   doypreds$riskcategory[doypreds$percentile >= 1-(riskalpha/2)] <- " Higher than usual    "
   doypredscurrent <- doypreds[doypreds$year == as.numeric(format(weekinquestion, "%Y")),]
-  projected_districts.df <- left_join(projected_districts.df, doypredscurrent,
+  projected_districts.df <- dplyr::left_join(projected_districts.df, doypredscurrent,
                                      by="district")
   projected_districts.df$riskcategory[is.na(projected_districts.df$riskcategory)] <- " Not able to model    "
   thisplotrisk <- ggplot(projected_districts.df) +
