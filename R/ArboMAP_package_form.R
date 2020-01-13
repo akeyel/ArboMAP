@@ -261,7 +261,7 @@ read.weather.data = function(weatherpathstr, weathersummaryfile){
 
 plot.weather.data = function(weather, graphicoutputdir, weekinquestionSun, var1name, var2name){
   # plot normals and this year
-  weather <- group_by(weather,
+  weather <- dplyr::group_by(weather,
                     doy)
   doymet  <- dplyr::summarize(weather,
                      med_tmeanc = quantile(tmeanc, probs=0.50, na.rm=TRUE),
@@ -277,7 +277,7 @@ plot.weather.data = function(weather, graphicoutputdir, weekinquestionSun, var1n
 
   thisyear <- max(weather$year, na.rm=TRUE)
   thisyear <- subset(weather, year == thisyear)
-  thisyear <- group_by(thisyear, doy)
+  thisyear <- dplyr::group_by(thisyear, doy)
   thisyear <- dplyr::summarize(thisyear,
                       med_tmeanc = quantile(tmeanc, probs=0.50, na.rm=TRUE),
                       med_rmean  = quantile(rmean,  probs=0.50, na.rm=TRUE),
@@ -289,7 +289,7 @@ plot.weather.data = function(weather, graphicoutputdir, weekinquestionSun, var1n
                       min_rmean  = min(rmean,  na.rm=TRUE),
                       min_vpd    = min(vpd,    na.rm=TRUE))
 
-  tempdf <- left_join(doymet, thisyear, by="doy")
+  tempdf <- dplyr::left_join(doymet, thisyear, by="doy")
   tempdf <- tempdf[!is.na(tempdf$med_tmeanc.x),]
 
   meantemp.x <- round(mean(tempdf$med_tmeanc.x, na.rm=TRUE), 1)
