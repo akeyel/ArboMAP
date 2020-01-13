@@ -1,0 +1,38 @@
+Package: ArboMAP
+Type: Package
+Title: Arbovirus Modeling and Prediction to Forecast Mosquito-Borne Disease Outbreaks
+Version: 0.1.0
+Author: Justin K. Davis <justinkdavis@ou.edu>
+    Michael C. Wimberly <mcwimberly@ou.edu>
+    Alexander C Keyel <akeyel@albany.edu>
+Maintainer: Alexander Keyel <akeyel@albany.edu>
+Description: This is a derivative of www.github.com/ecograph/arbomap developed
+    by Justin Davis and Michael Wimberly. It has been forked and reformatted
+    into package format by Alexander C. Keyel. Please note: the official
+    version contains changes not included here and is the recommended version
+    to use. 
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+Depends:
+	reshape2,
+	ggplot2,
+	gridExtra,
+	lme4,
+	pracma,
+	dplyr,
+	maptools,
+	raster,
+	spdep,
+	mgcv,
+	sp,
+	rgdal,
+	GISTools,
+	data.table,
+	splines,
+	maps,
+	broom,
+	mapproj,
+	Hmisc
+RoxygenNote: 6.1.1
+

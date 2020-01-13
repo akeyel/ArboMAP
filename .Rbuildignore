@@ -1,0 +1,18 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^GRIDMET_downloader.js
+^case
+^graphical
+^human
+^mosquito
+^pictures
+^shapefile$
+^strata$
+^weather
+'ArboMAP Main Code.Rmd'
+'ArboMAP User\'s Guide.Rmd'
+'ArboMAP Variable Selection.Rmd'
+ArboMAP_Main_Code.pdf
+ArboMAP_User_s_Guide.pdf
+ArboMAP_Variable_Selection.pdf
+ArboMAP-Main-Code.pdf
