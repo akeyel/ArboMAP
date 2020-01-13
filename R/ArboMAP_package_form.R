@@ -10,9 +10,19 @@
 NULL
 
 #' @import ggplot2
+#' @import dplyr
+#' @importFrom gridExtra grid.arrange
+#' @importFrom broom tidy
+#' @importFrom splines ns
+#' @importFrom data.table dcast
+#' @importFrom lme4 glmer
+#' @importFrom sp spTransform
+#' @importFrom Hmisc cut2
+#' @importFrom maptools readShapePoly
 #' @importFrom graphics plot
 #' @importFrom stats aggregate approx binomial glm lm predict quantile
 #' @importFrom utils head read.csv write.csv
+NULL
 
 #' Simplify Names (ArboMAP)
 #'
@@ -739,7 +749,7 @@ process.human.data2 = function(dailyextr, fullcasemat, randeffs, var1name, var2n
   
   lagframe <- data.frame(x=seq(from=1, to=laglen, by=1))
   alpha <- 1/4
-  distlagfunc <- ns(lagframe$x, intercept=TRUE,
+  distlagfunc <- splines::ns(lagframe$x, intercept=TRUE,
                     knots=quantile(lagframe$x,
                                    probs=seq(from=alpha, to=1-alpha, by=alpha),
                                    na.rm=TRUE))
@@ -956,7 +966,7 @@ make.raw.risk.map = function(districtshapefile, fullcasemat, graphicoutputdir, w
   district_shapes <- maptools::readShapePoly(districtshapefile)
   district_shapes$NAME <- simplifynames(district_shapes$NAME)
   crs(district_shapes) <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80     +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
-  projected_districts <- rgdal::spTransform(district_shapes, crs("+proj=longlat +datum=WGS84 +no_defs"))
+  projected_districts <- sp::spTransform(district_shapes, crs("+proj=longlat +datum=WGS84 +no_defs"))
   projected_districts@data$id = rownames(projected_districts@data)
   projected_districts.df <- broom::tidy(projected_districts)
   projected_districts.df <- dplyr::left_join(projected_districts.df, projected_districts@data, by="id")
